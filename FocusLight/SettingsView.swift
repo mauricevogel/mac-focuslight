@@ -7,6 +7,10 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Enable highlighting", isOn: $settings.isEnabled)
+                Toggle("Show menu bar icon", isOn: $settings.showMenuBarIcon)
+                Text("Open FocusLight from Spotlight or Finder to return to Settings when the icon is hidden.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Appearance") {
@@ -79,6 +83,12 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .help("Open Accessibility settings")
                 .accessibilityHint("Opens Accessibility permissions in System Settings")
+            }
+
+            Section {
+                Button("Quit FocusLight") {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
         .formStyle(.grouped)

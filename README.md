@@ -13,10 +13,11 @@ All rights reserved. FocusLight's original source code and documentation are not
 - Highlight the active window with a full border, an edge bar, or a pulsing corner dot.
 - Customize color and opacity, width, padding, corner radius, and dot corner.
 - Enable or disable highlighting from the menu bar.
+- Hide the menu bar icon and open Settings again through Spotlight or Finder.
 - Save settings automatically to a TOML config file between launches.
 - Use a transparent overlay that lets mouse clicks pass through.
 
-FocusLight runs in the menu bar, with no Dock icon or regular main window.
+FocusLight runs in the background with an optional menu bar icon and no Dock icon.
 
 ## Requirements
 
@@ -48,6 +49,8 @@ If the command reports that Xcode is not selected, open **Xcode → Settings →
 
 Look for the dashed rectangle icon in the menu bar. Its menu contains **Enable Highlighting**, **Settings**, and **Quit FocusLight**.
 
+In Settings, turn off **Show menu bar icon** to hide it while highlighting keeps running. Open FocusLight again from Spotlight or Finder to bring up Settings, where you can restore the icon, enable or disable highlighting, or quit. The visibility setting is saved between launches. A manual launch with the icon hidden opens Settings; launching as a login item runs quietly in the background.
+
 To start it automatically when you log in, add the installed app to **Open at Login** in **System Settings → General → Login Items** (called **Login Items & Extensions** on newer macOS versions). See [Apple's login items guide](https://support.apple.com/en-au/guide/mac-help/-mtusr003/mac).
 
 ### Updating your local copy
@@ -68,6 +71,7 @@ To configure the app by hand, quit FocusLight, edit the file, and reopen the app
 
 ```toml
 is_enabled = true
+show_menu_bar_icon = true
 highlight_style = "border"
 border_width = 4.0
 padding = 0.0
@@ -79,6 +83,7 @@ border_color = "#007AFFFF"
 | Key | Allowed values |
 | --- | --- |
 | `is_enabled` | `true` or `false` |
+| `show_menu_bar_icon` | `true` or `false`; controls icon visibility independently of highlighting |
 | `highlight_style` | `"border"`, `"top"`, `"bottom"`, `"left"`, `"right"`, `"dot"` |
 | `border_width` | 1–20 points; also controls dot size |
 | `padding` | 0–24 points |
@@ -96,23 +101,24 @@ Open `FocusLight.xcodeproj` in Xcode, select the shared **FocusLight** scheme, a
 
 | File | Purpose |
 | --- | --- |
-| `FocusLightApp.swift` | App entry point, menu bar, and Settings scene |
-| `AppDelegate.swift` | Highlighter lifecycle and Accessibility prompt |
+| `FocusLightApp.swift` | AppKit entry point and application lifetime |
+| `AppDelegate.swift` | Highlighter lifecycle, Settings window, reopening, and Accessibility prompt |
 | `WindowHighlighter.swift` | Tracks the active app and window through Accessibility events |
 | `OverlayWindow.swift` | Draws the highlight in a transparent floating window |
 | `AppSettings.swift` | Preferences and persistence |
 | `SettingsConfiguration.swift` | TOML schema, serialization, and validation |
-| `MenuBarView.swift` | Menu bar controls |
+| `MenuBarView.swift` | Optional AppKit status item and menu controls |
 | `SettingsView.swift` | Appearance controls and permission status |
 
 These Swift files are in `FocusLight/`. The shared Xcode scheme is committed; personal `xcuserdata`, editor settings, credentials, and generated build products are ignored.
 
 ## Troubleshooting
 
-- **No highlight:** check Accessibility access, enable highlighting in the menu bar, then quit and reopen the app. The focused application must expose its window through the macOS Accessibility API.
-- **No Dock icon:** this is expected; use the menu bar icon to open Settings or quit.
+- **No highlight:** check Accessibility access, enable highlighting in Settings or the menu bar, then quit and reopen the app. The focused application must expose its window through the macOS Accessibility API.
+- **No Dock icon:** this is expected; use the menu bar icon or open FocusLight again through Spotlight or Finder to access Settings or quit.
+- **No menu bar icon:** open FocusLight through Spotlight or Finder and enable **Show menu bar icon** in Settings.
 - **Two menu bar icons:** quit the Xcode-launched copy before running the installed app.
 
 Run `bash scripts/test-settings.sh` to check config parsing, validation, migration, persistence, and error recovery. The checks use temporary files and isolated in-memory preferences, leaving your own configuration untouched.
 
-To check the UI manually, switch between apps and windows, move and resize a window, try each highlight style, and verify that disabling highlighting hides the overlay.
+To check the UI manually, switch between apps and windows, move and resize a window, try each highlight style, and verify that disabling highlighting hides the overlay. Hide the menu bar icon and close Settings, confirm highlighting continues, then reopen FocusLight through Spotlight or Finder and restore the icon. Quit with the icon hidden and verify that a manual relaunch opens Settings; login-item launches should stay in the background.

@@ -1,21 +1,14 @@
-import SwiftUI
+import AppKit
 
 @main
-struct FocusLightApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
-                .environmentObject(appDelegate.settings)
-        } label: {
-            Image(systemName: "rectangle.dashed")
-        }
-        .menuBarExtraStyle(.menu)
-
-        Settings {
-            SettingsView()
-                .environmentObject(appDelegate.settings)
+enum FocusLightApp {
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        // AppKit owns the lifecycle so removing the status item never ends highlighting.
+        withExtendedLifetime(delegate) {
+            application.run()
         }
     }
 }

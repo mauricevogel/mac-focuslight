@@ -41,6 +41,9 @@ class AppSettings: ObservableObject {
     @Published var isEnabled: Bool {
         didSet { saveConfiguration() }
     }
+    @Published var showMenuBarIcon: Bool {
+        didSet { saveConfiguration() }
+    }
     @Published var highlightStyle: HighlightStyle {
         didSet { saveConfiguration() }
     }
@@ -93,6 +96,7 @@ class AppSettings: ObservableObject {
         }
 
         isEnabled = configuration.isEnabled
+        showMenuBarIcon = configuration.showMenuBarIcon
         highlightStyle = configuration.highlightStyle
         borderWidth = configuration.borderWidth
         padding = configuration.padding
@@ -138,6 +142,7 @@ class AppSettings: ObservableObject {
         guard canWriteConfiguration else { return }
         var configuration = SettingsConfiguration()
         configuration.isEnabled = isEnabled
+        configuration.showMenuBarIcon = showMenuBarIcon
         configuration.highlightStyle = highlightStyle
         configuration.borderWidth = borderWidth
         configuration.padding = padding

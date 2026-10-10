@@ -3,6 +3,7 @@ import Foundation
 /// The flat TOML schema used by FocusLight. Only the scalar types needed by settings are supported.
 struct SettingsConfiguration: Equatable {
     var isEnabled = true
+    var showMenuBarIcon = true
     var highlightStyle = HighlightStyle.border
     var borderWidth = 4.0
     var padding = 0.0
@@ -15,6 +16,7 @@ struct SettingsConfiguration: Equatable {
         # FocusLight configuration. Restart the app after editing this file.
         # Changes in the app rewrite this file with the current settings.
         is_enabled = \(isEnabled)
+        show_menu_bar_icon = \(showMenuBarIcon)
         highlight_style = "\(highlightStyle.rawValue)" # border, top, bottom, left, right, dot
         border_width = \(borderWidth) # 1–20 pt; also controls dot size
         padding = \(padding) # 0–24 pt
@@ -52,6 +54,9 @@ struct SettingsConfiguration: Equatable {
             case "is_enabled":
                 guard value == "true" || value == "false" else { throw invalid("true or false") }
                 isEnabled = value == "true"
+            case "show_menu_bar_icon":
+                guard value == "true" || value == "false" else { throw invalid("true or false") }
+                showMenuBarIcon = value == "true"
             case "highlight_style":
                 guard let string = Self.quotedString(value), let style = HighlightStyle(rawValue: string) else {
                     throw invalid("one of \"border\", \"top\", \"bottom\", \"left\", \"right\", or \"dot\"")
