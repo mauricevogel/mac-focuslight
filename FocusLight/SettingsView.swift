@@ -44,15 +44,41 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Permissions") {
-                HStack {
-                    Text("Accessibility access")
-                    Spacer()
-                    AccessibilityStatusBadge()
-                }
-                Text("Required to read the active window position. Grant access in **System Settings › Privacy & Security › Accessibility**.")
+            Section("Configuration") {
+                Text("~/.config/FocusLight/config.toml")
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                Text("Settings are saved automatically. Restart FocusLight after editing the file.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let error = settings.configurationError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section("Permissions") {
+                Link(destination: URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility")!) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Accessibility access")
+                            Spacer()
+                            AccessibilityStatusBadge()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                        }
+                        Text("Required to read the active window position. Grant access in **System Settings › Privacy & Security › Accessibility**.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Open Accessibility settings")
+                .accessibilityHint("Opens Accessibility permissions in System Settings")
             }
         }
         .formStyle(.grouped)

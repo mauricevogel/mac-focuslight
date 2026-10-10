@@ -15,6 +15,7 @@
 		1A000000000000000000AA06 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A000000000000000000BB07 /* SettingsView.swift */; };
 		1A000000000000000000AA07 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2A000000000000000000BB08 /* Assets.xcassets */; };
 		1A000000000000000000AA08 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A000000000000000000BB0A /* MenuBarView.swift */; };
+		1A000000000000000000AA09 /* SettingsConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A000000000000000000BB0B /* SettingsConfiguration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		2A000000000000000000BB08 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2A000000000000000000BB09 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2A000000000000000000BB0A /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		2A000000000000000000BB0B /* SettingsConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsConfiguration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +57,7 @@
 				2A000000000000000000BB02 /* FocusLightApp.swift */,
 				2A000000000000000000BB03 /* AppDelegate.swift */,
 				2A000000000000000000BB04 /* AppSettings.swift */,
+				2A000000000000000000BB0B /* SettingsConfiguration.swift */,
 				2A000000000000000000BB05 /* WindowHighlighter.swift */,
 				2A000000000000000000BB06 /* OverlayWindow.swift */,
 				2A000000000000000000BB07 /* SettingsView.swift */,
@@ -145,6 +148,7 @@
 				1A000000000000000000AA01 /* FocusLightApp.swift in Sources */,
 				1A000000000000000000AA02 /* AppDelegate.swift in Sources */,
 				1A000000000000000000AA03 /* AppSettings.swift in Sources */,
+				1A000000000000000000AA09 /* SettingsConfiguration.swift in Sources */,
 				1A000000000000000000AA04 /* WindowHighlighter.swift in Sources */,
 				1A000000000000000000AA05 /* OverlayWindow.swift in Sources */,
 				1A000000000000000000AA06 /* SettingsView.swift in Sources */,

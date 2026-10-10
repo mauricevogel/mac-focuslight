@@ -31,27 +31,33 @@ enum DotCorner: String, CaseIterable, Identifiable {
 
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
+    static let defaultConfigurationURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/FocusLight/config.toml")
+
+    let configurationURL: URL
+    @Published private(set) var configurationError: String?
+    private var canWriteConfiguration = true
 
     @Published var isEnabled: Bool {
-        didSet { UserDefaults.standard.set(isEnabled, forKey: Keys.isEnabled) }
+        didSet { saveConfiguration() }
     }
     @Published var highlightStyle: HighlightStyle {
-        didSet { UserDefaults.standard.set(highlightStyle.rawValue, forKey: Keys.highlightStyle) }
+        didSet { saveConfiguration() }
     }
     @Published var borderWidth: Double {
-        didSet { UserDefaults.standard.set(borderWidth, forKey: Keys.borderWidth) }
+        didSet { saveConfiguration() }
     }
     @Published var padding: Double {
-        didSet { UserDefaults.standard.set(padding, forKey: Keys.padding) }
+        didSet { saveConfiguration() }
     }
     @Published var cornerRadius: Double {
-        didSet { UserDefaults.standard.set(cornerRadius, forKey: Keys.cornerRadius) }
+        didSet { saveConfiguration() }
     }
     @Published var dotCorner: DotCorner {
-        didSet { UserDefaults.standard.set(dotCorner.rawValue, forKey: Keys.dotCorner) }
+        didSet { saveConfiguration() }
     }
     @Published var borderColor: Color {
-        didSet { UserDefaults.standard.set(borderColor.hexString, forKey: Keys.borderColorHex) }
+        didSet { saveConfiguration() }
     }
 
     private enum Keys {
@@ -69,31 +75,82 @@ class AppSettings: ObservableObject {
         static let legacyAlpha = "colorAlpha"
     }
 
-    private init() {
-        let d = UserDefaults.standard
-        isEnabled = (d.object(forKey: Keys.isEnabled) as? Bool) ?? true
-        highlightStyle = HighlightStyle(rawValue: d.string(forKey: Keys.highlightStyle) ?? "") ?? .border
-        borderWidth = (d.object(forKey: Keys.borderWidth) as? Double) ?? 4.0
-        padding = (d.object(forKey: Keys.padding) as? Double) ?? 0.0
-        cornerRadius = (d.object(forKey: Keys.cornerRadius) as? Double) ?? 8.0
-        dotCorner = DotCorner(rawValue: d.string(forKey: Keys.dotCorner) ?? "") ?? .topRight
+    init(configurationURL: URL = AppSettings.defaultConfigurationURL, defaults: UserDefaults = .standard) {
+        self.configurationURL = configurationURL
+        let fileExists = FileManager.default.fileExists(atPath: configurationURL.path)
+        var configuration = SettingsConfiguration()
+        var loadError: String?
+
+        if fileExists {
+            do {
+                configuration = try SettingsConfiguration(toml: String(contentsOf: configurationURL, encoding: .utf8))
+            } catch {
+                canWriteConfiguration = false
+                loadError = "Could not load config.toml: \(error.localizedDescription) Fix the file and restart FocusLight. Changes will not be saved until then."
+            }
+        } else {
+            configuration = Self.migratedConfiguration(from: defaults)
+        }
+
+        isEnabled = configuration.isEnabled
+        highlightStyle = configuration.highlightStyle
+        borderWidth = configuration.borderWidth
+        padding = configuration.padding
+        cornerRadius = configuration.cornerRadius
+        dotCorner = configuration.dotCorner
+        borderColor = Color(hexString: configuration.borderColorHex) ?? Color(red: 0.0, green: 0.478, blue: 1.0)
+        configurationError = loadError
+
+        if !fileExists { saveConfiguration() }
+    }
+
+    private static func migratedConfiguration(from d: UserDefaults) -> SettingsConfiguration {
+        var configuration = SettingsConfiguration()
+        configuration.isEnabled = (d.object(forKey: Keys.isEnabled) as? Bool) ?? configuration.isEnabled
+        configuration.highlightStyle = HighlightStyle(rawValue: d.string(forKey: Keys.highlightStyle) ?? "") ?? configuration.highlightStyle
+        configuration.dotCorner = DotCorner(rawValue: d.string(forKey: Keys.dotCorner) ?? "") ?? configuration.dotCorner
+
+        if let value = d.object(forKey: Keys.borderWidth) as? Double, value.isFinite, (1 ... 20).contains(value) {
+            configuration.borderWidth = value
+        }
+        if let value = d.object(forKey: Keys.padding) as? Double, value.isFinite, (0 ... 24).contains(value) {
+            configuration.padding = value
+        }
+        if let value = d.object(forKey: Keys.cornerRadius) as? Double, value.isFinite, (0 ... 40).contains(value) {
+            configuration.cornerRadius = value
+        }
 
         if let hex = d.string(forKey: Keys.borderColorHex), let color = Color(hexString: hex) {
-            borderColor = color
+            configuration.borderColorHex = color.hexString
         } else if d.object(forKey: Keys.legacyRed) != nil {
-            // Migrate from old per-component storage to hex
             let color = Color(
                 red: d.double(forKey: Keys.legacyRed),
                 green: d.double(forKey: Keys.legacyGreen),
                 blue: d.double(forKey: Keys.legacyBlue),
                 opacity: d.double(forKey: Keys.legacyAlpha)
             )
-            borderColor = color
-            d.set(color.hexString, forKey: Keys.borderColorHex)
-            [Keys.legacyRed, Keys.legacyGreen, Keys.legacyBlue, Keys.legacyAlpha]
-                .forEach { d.removeObject(forKey: $0) }
-        } else {
-            borderColor = Color(red: 0.0, green: 0.478, blue: 1.0)
+            configuration.borderColorHex = color.hexString
+        }
+        return configuration
+    }
+
+    private func saveConfiguration() {
+        guard canWriteConfiguration else { return }
+        var configuration = SettingsConfiguration()
+        configuration.isEnabled = isEnabled
+        configuration.highlightStyle = highlightStyle
+        configuration.borderWidth = borderWidth
+        configuration.padding = padding
+        configuration.cornerRadius = cornerRadius
+        configuration.dotCorner = dotCorner
+        configuration.borderColorHex = borderColor.hexString
+
+        do {
+            try FileManager.default.createDirectory(at: configurationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try configuration.toml.write(to: configurationURL, atomically: true, encoding: .utf8)
+            if configurationError != nil { configurationError = nil }
+        } catch {
+            configurationError = "Could not save config.toml: \(error.localizedDescription)"
         }
     }
 
