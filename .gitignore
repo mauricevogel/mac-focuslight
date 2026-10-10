@@ -1,0 +1,36 @@
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Xcode build products and local state
+/build/
+/dist/
+DerivedData/
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.ipa
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager (if dependencies are added later)
+.build/
+.swiftpm/
+
+# Local editor and assistant settings
+.idea/
+.vscode/
+.claude/
+
+# Local configuration and signing credentials
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile

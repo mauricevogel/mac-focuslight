@@ -51,7 +51,7 @@ class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(dotCorner.rawValue, forKey: Keys.dotCorner) }
     }
     @Published var borderColor: Color {
-        didSet { persistColor(borderColor) }
+        didSet { UserDefaults.standard.set(borderColor.hexString, forKey: Keys.borderColorHex) }
     }
 
     private enum Keys {
@@ -61,10 +61,12 @@ class AppSettings: ObservableObject {
         static let padding = "padding"
         static let cornerRadius = "cornerRadius"
         static let dotCorner = "dotCorner"
-        static let red = "colorRed"
-        static let green = "colorGreen"
-        static let blue = "colorBlue"
-        static let alpha = "colorAlpha"
+        static let borderColorHex = "borderColorHex"
+        // Legacy keys kept for one-time migration only
+        static let legacyRed = "colorRed"
+        static let legacyGreen = "colorGreen"
+        static let legacyBlue = "colorBlue"
+        static let legacyAlpha = "colorAlpha"
     }
 
     private init() {
@@ -76,27 +78,65 @@ class AppSettings: ObservableObject {
         cornerRadius = (d.object(forKey: Keys.cornerRadius) as? Double) ?? 8.0
         dotCorner = DotCorner(rawValue: d.string(forKey: Keys.dotCorner) ?? "") ?? .topRight
 
-        if d.object(forKey: Keys.red) != nil {
-            borderColor = Color(
-                red: d.double(forKey: Keys.red),
-                green: d.double(forKey: Keys.green),
-                blue: d.double(forKey: Keys.blue),
-                opacity: d.double(forKey: Keys.alpha)
+        if let hex = d.string(forKey: Keys.borderColorHex), let color = Color(hexString: hex) {
+            borderColor = color
+        } else if d.object(forKey: Keys.legacyRed) != nil {
+            // Migrate from old per-component storage to hex
+            let color = Color(
+                red: d.double(forKey: Keys.legacyRed),
+                green: d.double(forKey: Keys.legacyGreen),
+                blue: d.double(forKey: Keys.legacyBlue),
+                opacity: d.double(forKey: Keys.legacyAlpha)
             )
+            borderColor = color
+            d.set(color.hexString, forKey: Keys.borderColorHex)
+            [Keys.legacyRed, Keys.legacyGreen, Keys.legacyBlue, Keys.legacyAlpha]
+                .forEach { d.removeObject(forKey: $0) }
         } else {
             borderColor = Color(red: 0.0, green: 0.478, blue: 1.0)
         }
     }
 
-    private func persistColor(_ color: Color) {
-        guard let ns = NSColor(color).usingColorSpace(.deviceRGB) else { return }
-        UserDefaults.standard.set(Double(ns.redComponent), forKey: Keys.red)
-        UserDefaults.standard.set(Double(ns.greenComponent), forKey: Keys.green)
-        UserDefaults.standard.set(Double(ns.blueComponent), forKey: Keys.blue)
-        UserDefaults.standard.set(Double(ns.alphaComponent), forKey: Keys.alpha)
-    }
-
     var nsColor: NSColor {
         NSColor(borderColor).usingColorSpace(.deviceRGB) ?? .systemBlue
+    }
+}
+
+// MARK: - Color ↔ Hex String
+
+private extension Color {
+    /// Returns an 8-digit hex string "#RRGGBBAA".
+    var hexString: String {
+        guard let ns = NSColor(self).usingColorSpace(.deviceRGB) else { return "#0079FFFF" }
+        let r = Int((ns.redComponent   * 255).rounded())
+        let g = Int((ns.greenComponent * 255).rounded())
+        let b = Int((ns.blueComponent  * 255).rounded())
+        let a = Int((ns.alphaComponent * 255).rounded())
+        return String(format: "#%02X%02X%02X%02X", r, g, b, a)
+    }
+
+    /// Parses a "#RRGGBBAA" or "#RRGGBB" hex string.
+    init?(hexString: String) {
+        var s = hexString
+        if s.hasPrefix("#") { s.removeFirst() }
+        switch s.count {
+        case 6:
+            guard let value = UInt32(s, radix: 16) else { return nil }
+            self.init(
+                red:   Double((value >> 16) & 0xFF) / 255,
+                green: Double((value >>  8) & 0xFF) / 255,
+                blue:  Double( value        & 0xFF) / 255
+            )
+        case 8:
+            guard let value = UInt32(s, radix: 16) else { return nil }
+            self.init(
+                red:     Double((value >> 24) & 0xFF) / 255,
+                green:   Double((value >> 16) & 0xFF) / 255,
+                blue:    Double((value >>  8) & 0xFF) / 255,
+                opacity: Double( value        & 0xFF) / 255
+            )
+        default:
+            return nil
+        }
     }
 }

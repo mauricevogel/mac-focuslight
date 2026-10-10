@@ -8,6 +8,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Explicit policy keeps the app out of the Dock and App Switcher.
+        // Info.plist's LSUIElement=true does the same, but being explicit here
+        // documents intent and guards against accidental policy changes.
+        NSApp.setActivationPolicy(.accessory)
         setupHighlighter()
         promptAccessibilityIfNeeded()
     }

@@ -5,40 +5,133 @@ import Combine
 final class WindowHighlighter {
     private let settings: AppSettings
     private let overlay: OverlayWindow
-    private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
+
+    // AX observation state
+    private var axObserver: AXObserver?
+    private var observedApp: AXUIElement?
+    private var observedWindow: AXUIElement?
+    private var observedPID: pid_t = 0
 
     init(settings: AppSettings) {
         self.settings = settings
         self.overlay = OverlayWindow()
         refreshAppearance()
 
-        // Keep overlay visuals in sync with all settings changes.
+        // Keep overlay visuals and frame in sync with all settings changes.
         // objectWillChange fires before the update, so delay one cycle to read new values.
         settings.objectWillChange
             .delay(for: 0, scheduler: RunLoop.main)
-            .sink { [weak self] _ in self?.refreshAppearance() }
+            .sink { [weak self] _ in
+                self?.refreshAppearance()
+                self?.updateOverlayPosition()
+            }
             .store(in: &cancellables)
+    }
+
+    deinit {
+        teardownAXObserver()
     }
 
     // MARK: - Lifecycle
 
     func start() {
-        guard timer == nil else { return }
-        let t = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            self?.tick()
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(activeAppChanged),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+        trackFrontmostApp()
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        teardownAXObserver()
         overlay.orderOut(nil)
     }
 
-    // MARK: - Private
+    // MARK: - App Tracking
+
+    @objc private func activeAppChanged() {
+        trackFrontmostApp()
+    }
+
+    private func trackFrontmostApp() {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            teardownAXObserver()
+            overlay.orderOut(nil)
+            return
+        }
+
+        let pid = app.processIdentifier
+        if pid != observedPID {
+            teardownAXObserver()
+            setupAXObserver(pid: pid)
+        }
+
+        updateOverlayPosition()
+    }
+
+    // MARK: - AX Observer
+
+    private func setupAXObserver(pid: pid_t) {
+        var obs: AXObserver?
+        guard AXObserverCreate(pid, axEventCallback, &obs) == .success, let obs else { return }
+
+        let axApp = AXUIElementCreateApplication(pid)
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+
+        // App-level: track when the focused window changes
+        AXObserverAddNotification(obs, axApp, kAXFocusedWindowChangedNotification as CFString, ctx)
+
+        // Window-level: track move and resize for the initially focused window
+        if let window = focusedWindow(of: axApp) {
+            AXObserverAddNotification(obs, window, kAXWindowMovedNotification as CFString, ctx)
+            AXObserverAddNotification(obs, window, kAXWindowResizedNotification as CFString, ctx)
+            observedWindow = window
+        }
+
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+        axObserver = obs
+        observedApp = axApp
+        observedPID = pid
+    }
+
+    private func teardownAXObserver() {
+        if let obs = axObserver {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+        }
+        axObserver = nil
+        observedApp = nil
+        observedWindow = nil
+        observedPID = 0
+    }
+
+    // Called by the C callback on the main run loop.
+    fileprivate func handleAXEvent(notification: CFString) {
+        // When the focused window changes within the same app, re-register move/resize
+        // notifications on the new window so we keep tracking it accurately.
+        if notification as String == kAXFocusedWindowChangedNotification,
+           let obs = axObserver, let app = observedApp {
+            let ctx = Unmanaged.passUnretained(self).toOpaque()
+            if let old = observedWindow {
+                AXObserverRemoveNotification(obs, old, kAXWindowMovedNotification as CFString)
+                AXObserverRemoveNotification(obs, old, kAXWindowResizedNotification as CFString)
+            }
+            if let newWindow = focusedWindow(of: app) {
+                AXObserverAddNotification(obs, newWindow, kAXWindowMovedNotification as CFString, ctx)
+                AXObserverAddNotification(obs, newWindow, kAXWindowResizedNotification as CFString, ctx)
+                observedWindow = newWindow
+            } else {
+                observedWindow = nil
+            }
+        }
+        updateOverlayPosition()
+    }
+
+    // MARK: - Overlay
 
     private func refreshAppearance() {
         overlay.update(
@@ -50,14 +143,15 @@ final class WindowHighlighter {
         )
     }
 
-    private func tick() {
-        guard let frame = focusedWindowFrame() else {
+    private func updateOverlayPosition() {
+        // Use the stored window reference when available; fall back to querying the app element
+        // (e.g., immediately after setup before the first focused-window-changed event).
+        let window = observedWindow ?? observedApp.flatMap { focusedWindow(of: $0) }
+        guard let window, let frame = axWindowFrame(window) else {
             overlay.orderOut(nil)
             return
         }
 
-        // For a full border the stroke is centred on the overlay edge, so expand by half
-        // the stroke width to keep it just outside the window. Bars and dots sit inside.
         let strokeExpand = settings.highlightStyle == .border ? CGFloat(settings.borderWidth) / 2 : 0
         let expand = CGFloat(settings.padding) + strokeExpand
         let overlayFrame = frame.insetBy(dx: -expand, dy: -expand)
@@ -70,19 +164,11 @@ final class WindowHighlighter {
 
     // MARK: - Accessibility
 
-    private func focusedWindowFrame() -> CGRect? {
-        guard let frontApp = NSWorkspace.shared.frontmostApplication,
-              frontApp.bundleIdentifier != Bundle.main.bundleIdentifier else {
-            return nil
-        }
-
-        let axApp = AXUIElementCreateApplication(frontApp.processIdentifier)
-
-        var windowRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
-              let windowRef else { return nil }
-
-        return axWindowFrame(windowRef as! AXUIElement)
+    private func focusedWindow(of axApp: AXUIElement) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &ref) == .success,
+              let ref else { return nil }
+        return (ref as! AXUIElement)
     }
 
     private func axWindowFrame(_ window: AXUIElement) -> CGRect? {
@@ -100,10 +186,25 @@ final class WindowHighlighter {
               AXValueGetValue(sizeRef as! AXValue, .cgSize, &size) else { return nil }
 
         // AX uses top-left origin (Y down). NSScreen uses bottom-left origin (Y up).
-        // The main screen height is the reference for the Y flip.
         guard let mainHeight = NSScreen.main?.frame.height else { return nil }
-        let flippedY = mainHeight - position.y - size.height
-
-        return CGRect(x: position.x, y: flippedY, width: size.width, height: size.height)
+        return CGRect(x: position.x,
+                      y: mainHeight - position.y - size.height,
+                      width: size.width,
+                      height: size.height)
     }
+}
+
+// MARK: - AX C Callback
+
+// Free function required by AXObserverCreate. Runs on the main run loop.
+private func axEventCallback(
+    _ observer: AXObserver,
+    _ element: AXUIElement,
+    _ notification: CFString,
+    _ userData: UnsafeMutableRawPointer?
+) {
+    guard let userData else { return }
+    Unmanaged<WindowHighlighter>.fromOpaque(userData)
+        .takeUnretainedValue()
+        .handleAXEvent(notification: notification)
 }
